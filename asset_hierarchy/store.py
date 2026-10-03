@@ -1,7 +1,6 @@
 """SQLite persistence for projects, nodes and deletion tombstones."""
 from __future__ import annotations
 
-import sqlite3
 import threading
 from dataclasses import asdict, fields
 from pathlib import Path
@@ -22,6 +21,7 @@ def _node_columns() -> str:
 
 class Store:
     def __init__(self, path: str | Path = ":memory:"):
+        import sqlite3  # imported lazily: the in-browser build has no sqlite and uses JsonStore
         self.db = sqlite3.connect(str(path), check_same_thread=False)  # web workers share it; calls are serialised by _lock
         self._lock = threading.RLock()
         self.db.row_factory = sqlite3.Row
