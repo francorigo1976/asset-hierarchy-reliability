@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from dataclasses import asdict, fields
 from pathlib import Path
 
@@ -21,7 +22,8 @@ def _node_columns() -> str:
 
 class Store:
     def __init__(self, path: str | Path = ":memory:"):
-        self.db = sqlite3.connect(str(path))
+        self.db = sqlite3.connect(str(path), check_same_thread=False)  # web workers share it; calls are serialised by _lock
+        self._lock = threading.RLock()
         self.db.row_factory = sqlite3.Row
         self.db.executescript(f"""
             CREATE TABLE IF NOT EXISTS projects (
@@ -35,7 +37,7 @@ class Store:
                 node_id TEXT PRIMARY KEY, project_id TEXT, deleted_at TEXT DEFAULT CURRENT_TIMESTAMP);
         """)
 
-    def save(self, h: Hierarchy) -> None:
+    def _save(self, h: Hierarchy) -> None:
         p = asdict(h.project)
         with self.db:
             self.db.execute(
@@ -51,7 +53,7 @@ class Store:
                                 (nid, h.project.id))
             h.deleted_ids.clear()
 
-    def load(self, project_id: str) -> Hierarchy:
+    def _load(self, project_id: str) -> Hierarchy:
         row = self.db.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
         if not row:
             raise KeyError(project_id)
@@ -68,5 +70,17 @@ class Store:
             nodes.append(Node(**{k: d[k] for k in NODE_FIELDS}))
         return Hierarchy(project, nodes)
 
-    def list_projects(self) -> list[tuple[str, str]]:
+    def _list_projects(self) -> list[tuple[str, str]]:
         return [(r["id"], r["site"]) for r in self.db.execute("SELECT id, site FROM projects ORDER BY created_at")]
+
+    def save(self, h: Hierarchy) -> None:
+        with self._lock:
+            self._save(h)
+
+    def load(self, project_id: str) -> Hierarchy:
+        with self._lock:
+            return self._load(project_id)
+
+    def list_projects(self) -> list[tuple[str, str]]:
+        with self._lock:
+            return self._list_projects()

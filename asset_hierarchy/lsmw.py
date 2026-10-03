@@ -17,7 +17,7 @@ from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from .classify import ZCM_DESC
-from .sapname import generate_sap_name
+from .sapname import SapName, generate_sap_name
 from .hierarchy import FLOC_LABEL_LIMIT, FLOC_SEGMENT_MAX, Hierarchy
 from .models import Node
 
@@ -190,7 +190,7 @@ def export_lsmw(h: Hierarchy, path: str | Path, today: Optional[str] = None) -> 
         r = [""] * EQ_COLS
         r[1] = trunc(n.asset_id, 40, "LEGACYKEY")
         r[3], r[4] = today, "E"
-        r[5] = trunc(n.sap_name or generate_sap_name(n).sap_name or n.description or n.name, 40, "EQKTX")
+        r[5] = trunc(n.sap_name or (generate_sap_name(n) or SapName("", "", False)).sap_name or n.description or n.name, 40, "EQKTX")
         r[7] = trunc(_obj_type(n, "EQUIPMENT"), 10)
         r[16], r[18] = trunc(n.manufacturer, 30, "HERST"), year(n.year)
         r[20], r[21], r[22] = trunc(n.model, 20, "TYPBZ"), trunc(n.serial, 30, "SERGE"), trunc(n.tann_part_no, 30, "MAPAR")

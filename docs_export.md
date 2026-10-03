@@ -43,3 +43,7 @@ Not yet ported: browser UI, photos/voice, FMECA engine, cloud sync, SAP LSMW 16-
 - `export_lsmw(h, path)` writes the client's SAP PM LSMW workbook layout (FL 56 columns, EQ 101 columns, field codes on row 7, lengths row 8, descriptions row 9, data from row 17).
 - `parse_sap_template(path)` / `apply_sap_import(h, parsed, mode="merge"|"new")` read the same workbook back (round trip). Application is atomic: any failure restores the hierarchy.
 - Sub-equipment links use HEQUI = parent `asset_id` (written as LEGACYKEY); import resolves HEQUI by tag or LEGACYKEY.
+
+## Web UI
+
+`uvicorn asset_hierarchy.web.app:app` (env `HIERARCHY_DB`, `HIERARCHY_AUDIT`). Tree view with add/edit/move/delete, template picker (incl. `lsmw`), Validate, Export, Import SAP template (dry-run then merge), and audit log viewer. JSON API under `/api`.

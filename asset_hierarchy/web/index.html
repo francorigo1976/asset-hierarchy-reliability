@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Asset Hierarchy</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1c2330;--card:#fff;--mut:#667085;--line:#d9dde4;--acc:#1f6feb;--bad:#c62828;--warn:#b26a00}
+@media (prefers-color-scheme:dark){:root{--bg:#12161c;--fg:#e6e9ef;--card:#1b212b;--mut:#98a2b3;--line:#2f3846;--acc:#4c8dff;--bad:#ef6a6a;--warn:#e0a040}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px system-ui,sans-serif}
+header{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--line)}
+main{display:grid;grid-template-columns:minmax(280px,1fr) minmax(300px,420px);gap:12px;padding:12px 16px}
+@media(max-width:800px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px}
+button,select,input,textarea{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:5px 9px}
+button{cursor:pointer}button.p{background:var(--acc);color:#fff;border-color:var(--acc)}button.d{color:var(--bad)}
+ul{list-style:none;margin:0;padding-left:18px}#tree>ul{padding-left:0}
+.n{display:flex;gap:6px;align-items:center;padding:3px 6px;border-radius:6px;cursor:pointer}.n:hover{background:var(--bg)}.n.sel{outline:2px solid var(--acc)}
+.tag{font-size:11px;color:var(--mut)}.fl{font-weight:600}.rev{color:var(--warn)}
+label{display:block;margin:6px 0 2px;color:var(--mut);font-size:12px}input,textarea{width:100%}
+.msg{white-space:pre-wrap;font-size:13px;margin-top:8px}.bad{color:var(--bad)}.warn{color:var(--warn)}
+table{border-collapse:collapse;width:100%;font-size:12px}td,th{border-bottom:1px solid var(--line);padding:3px 6px;text-align:left}
+</style></head><body>
+<header>
+  <b>Asset Hierarchy</b>
+  <select id="proj"></select><button id="np">New project</button>
+  <span style="flex:1"></span>
+  <select id="tpl"></select>
+  <button id="chk">Validate</button><button id="exp" class="p">Export</button>
+  <label style="display:inline;margin:0"><input type="file" id="imp" accept=".xlsx" style="display:none"><button id="impb">Import SAP template…</button></label>
+  <button id="aud">Audit</button>
+</header>
+<main>
+  <div class="card"><div style="margin-bottom:8px"><button id="addroot">+ Root location</button>
+    <button id="addfl">+ Location</button><button id="addeq">+ Equipment</button></div><div id="tree"></div></div>
+  <div>
+    <div class="card" id="edit"><i class="tag">Select a node</i></div>
+    <div class="card msg" id="out" style="margin-top:12px">Ready.</div>
+  </div>
+</main>
+<script>
+const $=s=>document.querySelector(s);let P=null,SEL=null;
+const api=async(u,o={})=>{const r=await fetch(u,o);if(!r.ok){let m=r.statusText;try{m=(await r.json()).detail}catch{}throw new Error(m)}return r};
+const J=(m,b)=>({method:m,headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+const out=(t,c)=>{$('#out').className='card msg '+(c||'');$('#out').textContent=t};
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function projects(sel){const l=await (await api('/api/projects')).json();$('#proj').innerHTML=l.map(p=>`<option value="${p.id}">${esc(p.site)}</option>`).join('');
+  if(sel)$('#proj').value=sel;if(l.length)await open($('#proj').value);else{P=null;render()}}
+async function open(id){P=await (await api('/api/projects/'+id)).json();SEL=null;render()}
+function render(){
+  const t=$('#tree');if(!P){t.innerHTML='<i class="tag">Create a project to begin.</i>';return}
+  const by={};P.nodes.forEach(n=>(by[n.parent_id||'']??=[]).push(n));
+  const li=pid=>(by[pid]||[]).map(n=>`<li><div class="n ${SEL==n.id?'sel':''}" data-id="${n.id}">
+    <span>${n.is_area?'📁':'⚙'}</span><span class="${n.is_area?'fl':''}">${esc(n.description||n.name)}</span>
+    <span class="tag">${esc(n.is_area?n.floc_label:n.tag_number||n.asset_id)}</span>${n.catalog_code?`<span class="tag ${n.needs_catalog_review?'rev':''}">${esc(n.catalog_code)}</span>`:''}</div>
+    ${by[n.id]?`<ul>${li(n.id)}</ul>`:''}</li>`).join('');
+  t.innerHTML='<ul>'+li('')+'</ul>';
+  t.querySelectorAll('.n').forEach(e=>e.onclick=()=>{SEL=e.dataset.id;render();editor()});
+}
+const F=[['description','Description'],['tag_number','Tag'],['catalog_code','ZCM catalog'],['manufacturer','Manufacturer'],['model','Model'],['serial','Serial'],['year','Year'],['tann_part_no','Part no.'],['sap_name','SAP name (40)'],['notes','Notes']];
+function editor(){
+  const n=P.nodes.find(x=>x.id==SEL);const e=$('#edit');if(!n){e.innerHTML='<i class="tag">Select a node</i>';return}
+  e.innerHTML=`<b>${n.is_area?'Location':'Equipment'}</b> <span class="tag">${esc(n.asset_id)}</span>`+
+    F.map(([k,l])=>`<label>${l}</label><input data-k="${k}" value="${esc(n[k])}">`).join('')+
+    `<label><input type="checkbox" id="also" style="width:auto" ${n.is_also_equipment?'checked':''}> Also equipment (1:1)</label>
+    <label>Move under</label><select id="mv" style="width:100%"><option value="">(root)</option>${P.nodes.filter(x=>x.is_area&&x.id!=n.id).map(x=>`<option value="${x.id}" ${x.id==n.parent_id?'selected':''}>${esc(x.floc_label||x.description)}</option>`).join('')}</select>
+    <div style="margin-top:10px;display:flex;gap:8px"><button class="p" id="sv">Save</button><button id="mvb">Move</button><button class="d" id="del">Delete</button></div>`;
+  $('#sv').onclick=()=>run(async()=>{const f={is_also_equipment:$('#also').checked};e.querySelectorAll('input[data-k]').forEach(i=>f[i.dataset.k]=i.value);
+    P=await (await api(`/api/projects/${P.project.id}/nodes/${n.id}`,J('PATCH',f))).json();render();editor();out('Saved.')});
+  $('#mvb').onclick=()=>run(async()=>{P=await (await api(`/api/projects/${P.project.id}/nodes/${n.id}/move`,J('POST',{parent_id:$('#mv').value||null}))).json();render();editor();out('Moved.')});
+  $('#del').onclick=()=>run(async()=>{if(!confirm('Delete this node and its children?'))return;P=await (await api(`/api/projects/${P.project.id}/nodes/${n.id}`,{method:'DELETE'})).json();SEL=null;render();editor();out('Deleted.')});
+}
+const run=f=>f().catch(e=>out(e.message,'bad'));
+const add=(is_area,root)=>run(async()=>{if(!P)return;const d=prompt(is_area?'Location description':'Equipment description');if(!d)return;
+  const sel=P.nodes.find(x=>x.id==SEL);let parent=root?null:sel?(sel.is_area?sel.id:sel.parent_id):null;
+  P=await (await api(`/api/projects/${P.project.id}/nodes`,J('POST',{parent_id:parent,is_area,description:d}))).json();render();out('Added.')});
+$('#addroot').onclick=()=>add(true,true);$('#addfl').onclick=()=>add(true,false);$('#addeq').onclick=()=>add(false,false);
+$('#proj').onchange=e=>run(()=>open(e.target.value));
+$('#np').onclick=()=>run(async()=>{const site=prompt('Site name');if(!site)return;const prefix=(prompt('FLOC prefix (max 5)')||'').toUpperCase().slice(0,5);
+  const p=await (await api('/api/projects',J('POST',{site,prefix}))).json();await projects(p.project.id)});
+$('#chk').onclick=()=>run(async()=>{if(!P)return;const r=await (await api(`/api/projects/${P.project.id}/preflight/${$('#tpl').value}`)).json();
+  const m=x=>'• '+(x.field?x.field+': ':'')+(x.message||JSON.stringify(x));
+  out(`${r.ok?'READY':'BLOCKED'} — ${r.rows} row(s)\n`+(r.errors||[]).map(m).join('\n')+'\n'+(r.warnings||[]).map(m).join('\n'),r.ok?'':'bad')});
+$('#exp').onclick=()=>run(async()=>{if(!P)return;const r=await api(`/api/projects/${P.project.id}/export/${$('#tpl').value}`);
+  const b=await r.blob();const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=$('#tpl').value+'.xlsx';a.click();out('Exported (logged to audit trail).')});
+$('#impb').onclick=e=>{e.preventDefault();$('#imp').click()};
+$('#imp').onchange=e=>run(async()=>{const f=e.target.files[0];if(!f||!P)return;const fd=new FormData();fd.append('file',f);
+  const pre=await (await api(`/api/projects/${P.project.id}/import?dry_run=true`,{method:'POST',body:fd})).json();
+  if(pre.errors.length||pre.record_errors.length){out('Import blocked:\n'+pre.errors.concat(pre.record_errors.map(x=>x.join(' '))).join('\n'),'bad');return}
+  if(!confirm(`Import ${pre.flocs} locations and ${pre.equipment} equipment (merge)?`))return;
+  const r=await (await api(`/api/projects/${P.project.id}/import`,{method:'POST',body:fd})).json();P=r;render();
+  out(`Imported: +${r.stats.added} added, ${r.stats.updated} updated, ${r.stats.skipped} skipped.\n`+r.stats.warnings.join('\n'))});
+$('#aud').onclick=()=>run(async()=>{const l=await (await api('/api/audit')).json();
+  $('#out').className='card';$('#out').innerHTML='<table><tr><th>Time</th><th>User</th><th>Action</th><th>Template</th></tr>'+l.slice().reverse().map(e=>`<tr><td>${esc(e.timestamp)}</td><td>${esc(e.user)}</td><td>${esc(e.action)}</td><td>${esc(e.template||e.file||'')}</td></tr>`).join('')+'</table>'});
+(async()=>{const t=await (await api('/api/templates')).json();$('#tpl').innerHTML=t.map(x=>`<option value="${x.key}">${esc(x.name)}</option>`).join('');await projects()})().catch(e=>out(e.message,'bad'));
+</script></body></html>
