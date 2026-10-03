@@ -55,3 +55,5 @@ Mac/Linux: `./run.sh`  Windows: double-click `run.bat`. Then open http://127.0.0
 ## Standalone browser app (no install)
 
 `dist/AssetHierarchy.html` is a single file: double-click it. It runs the Python app inside the browser (Pyodide, loaded from the jsDelivr CDN, so internet is needed on first load) and keeps data in the browser (localStorage). Rebuild with `python3 tools/build_standalone.py`.
+
+`dist/AssetHierarchy-offline.html` bundles the Python engine (about 8 MB) and works with no internet. Both files are built by `python3 tools/build_standalone.py`.
