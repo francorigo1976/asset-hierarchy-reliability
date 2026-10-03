@@ -30,7 +30,8 @@ function save(){try{const r=bridge.snapshot().toJs();localStorage.setItem(KEY,JS
   catch(e){console.warn("could not save state",e)}}
 const realFetch=window.fetch.bind(window);
 window.fetch=async function(url,opt={}){
-  if(!String(url).startsWith("/api"))return realFetch(url,opt);
+  if(url instanceof URL)url=url.href;   // some hosts/sandboxes cannot clone URL objects (DataCloneError)
+  if(typeof url!=="string"||!url.startsWith("/api"))return realFetch(url,opt);
   await ready;
   const u=new URL(url,"http://x"),q={};u.searchParams.forEach((v,k)=>q[k]=v);
   const method=(opt.method||"GET").toUpperCase();let body="null",fname="",content=null;
