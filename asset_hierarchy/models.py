@@ -27,6 +27,9 @@ class Project:
     sap_company_code: str = ""
     sap_cost_center: str = ""
     sap_structure: str = "floc-only"   # floc-only | one-to-one | structure-leaf
+    sap_work_center: str = ""
+    sap_planner_group: str = ""
+    sap_structure_indicator: str = ""
     created_at: str = field(default_factory=_now)
 
 

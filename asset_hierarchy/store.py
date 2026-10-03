@@ -27,7 +27,8 @@ class Store:
             CREATE TABLE IF NOT EXISTS projects (
                 id TEXT PRIMARY KEY, site TEXT, client TEXT, auditor TEXT, prefix TEXT, next_seq INTEGER,
                 sap_planning_plant TEXT, sap_maint_plant TEXT, sap_company_code TEXT, sap_cost_center TEXT,
-                sap_structure TEXT, created_at TEXT);
+                sap_structure TEXT, sap_work_center TEXT, sap_planner_group TEXT,
+                sap_structure_indicator TEXT, created_at TEXT);
             CREATE TABLE IF NOT EXISTS nodes ({_node_columns()});
             CREATE INDEX IF NOT EXISTS idx_nodes_project ON nodes(project_id);
             CREATE TABLE IF NOT EXISTS deleted_nodes (

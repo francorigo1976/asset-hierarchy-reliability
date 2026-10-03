@@ -37,3 +37,9 @@ Python port of the HierarchyCapture domain logic, persisted in SQLite and wired 
   SAP AM/MM, Maximo, Infor EAM, eMaint, Maintenance Connection.
 
 Not yet ported: browser UI, photos/voice, FMECA engine, cloud sync, SAP LSMW 16-row template layout, SAP template import.
+
+## Exact LSMW export and template import
+
+- `export_lsmw(h, path)` writes the client's SAP PM LSMW workbook layout (FL 56 columns, EQ 101 columns, field codes on row 7, lengths row 8, descriptions row 9, data from row 17).
+- `parse_sap_template(path)` / `apply_sap_import(h, parsed, mode="merge"|"new")` read the same workbook back (round trip). Application is atomic: any failure restores the hierarchy.
+- Sub-equipment links use HEQUI = parent `asset_id` (written as LEGACYKEY); import resolves HEQUI by tag or LEGACYKEY.

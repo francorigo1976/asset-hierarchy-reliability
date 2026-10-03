@@ -8,3 +8,5 @@ from .bridge import export_nodes, preflight
 
 __all__ = ["Node", "Project", "Hierarchy", "HierarchyError", "Store", "auto_detect_catalog",
            "generate_sap_name", "validate_sap_name", "export_nodes", "preflight"]
+from .lsmw import export_lsmw  # noqa: E402
+from .sapimport import apply_sap_import, parse_sap_template  # noqa: E402

@@ -79,3 +79,26 @@ def auto_detect_catalog(description: str) -> Detection:
             code, v, f, d = CATALOG_LOOKUP[k]
             return Detection(code, v, f, d, matched_on=k)
     return Detection(needs_review=True, attempted=" or ".join(keys))
+
+
+# ZCM profile descriptions (subset) — used for the SAP object type (EQART) column.
+ZCM_DESC = {
+    "ZCM0001": "Absorber", "ZCM0002": "Accumulator", "ZCM0003": "Actuator", "ZCM0005": "Agitator",
+    "ZCM0006": "Analytical Instruments", "ZCM0009": "Valve Ball", "ZCM0010": "Conveyor Belt", "ZCM0011": "Blender",
+    "ZCM0012": "Blower", "ZCM0013": "Boiler", "ZCM0014": "Bucket Elevator", "ZCM0016": "Valve Butterfly",
+    "ZCM0017": "Pump Centrifugal", "ZCM0018": "Conveyor Chain", "ZCM0019": "Valve Check", "ZCM0020": "Chillers",
+    "ZCM0022": "Columns", "ZCM0023": "Compressors", "ZCM0025": "Controls", "ZCM0026": "Conveyor (General)",
+    "ZCM0027": "Cooling Towers", "ZCM0030": "Valve Diaphram", "ZCM0033": "Dryers", "ZCM0034": "Dust Collector",
+    "ZCM0038": "Extruders", "ZCM0039": "Fans", "ZCM0041": "Filters/Seperators", "ZCM0044": "Furnances/Kilns",
+    "ZCM0045": "Valve Gate", "ZCM0046": "Valve Globe", "ZCM0047": "Heat Exchangers", "ZCM0049": "Hoses",
+    "ZCM0050": "HVAC", "ZCM0053": "Instrumentation (General)", "ZCM0054": "Inverter Battery",
+    "ZCM0059": "Meters (Instruments)", "ZCM0060": "Pump Misc", "ZCM0061": "Mixers",
+    "ZCM0063": "Motor Control Centers (MCC's)", "ZCM0064": "Gear Reducer", "ZCM0065": "Motors & Engines",
+    "ZCM0066": "Valve Needle", "ZCM0067": "Ovens", "ZCM0070": "Valve Pinch", "ZCM0071": "Piping",
+    "ZCM0072": "Valve Plug", "ZCM0073": "Conveyor Pneumatic", "ZCM0075": "Power Generation Equipment",
+    "ZCM0076": "Valve Pressure Relief", "ZCM0077": "Pump Progressive Cavity", "ZCM0078": "Reactors",
+    "ZCM0079": "Pump Reciprocating", "ZCM0083": "Pump Rotary", "ZCM0086": "Conveyor Screw", "ZCM0087": "Scrubbers",
+    "ZCM0091": "Valve Solenoid", "ZCM0093": "Pressure Vessels/Storage Tanks", "ZCM0094": "Pump Sump",
+    "ZCM0095": "Switch Gear", "ZCM0097": "Transmitters/Sensors", "ZCM0098": "Turbines", "ZCM0099": "Pump Vacuum",
+    "ZCM0101": "Valves (General)", "ZCM0104": "Weighing Systems/Equipment", "ZCM0106": "RTO Oxidizer",
+}
