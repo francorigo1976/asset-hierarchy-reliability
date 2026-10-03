@@ -47,3 +47,7 @@ Not yet ported: browser UI, photos/voice, FMECA engine, cloud sync, SAP LSMW 16-
 ## Web UI
 
 `uvicorn asset_hierarchy.web.app:app` (env `HIERARCHY_DB`, `HIERARCHY_AUDIT`). Tree view with add/edit/move/delete, template picker (incl. `lsmw`), Validate, Export, Import SAP template (dry-run then merge), and audit log viewer. JSON API under `/api`.
+
+## Quick start
+
+Mac/Linux: `./run.sh`  Windows: double-click `run.bat`. Then open http://127.0.0.1:8000.
