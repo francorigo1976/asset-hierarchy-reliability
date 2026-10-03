@@ -1,0 +1,25 @@
+# Data Export & Integration Module
+
+`data_export/` generates upload-ready files for enterprise systems, validates them first, and audits every export.
+
+| System | Template keys |
+|---|---|
+| SAP AM (Asset Accounting) | `sap_am_asset` |
+| SAP PM | `sap_pm_functional_location`, `sap_pm_equipment`, `sap_pm_bom` |
+| SAP MM | `sap_mm_material` |
+| IBM Maximo | `maximo_asset` |
+| Infor EAM | `infor_eam_equipment` |
+| eMaint | `emaint_asset` |
+| Maintenance Connection | `maintenance_connection_asset` |
+
+```python
+from data_export import AuditTrail, export_records
+res = export_records("sap_pm_equipment", records, "out/equipment.xlsx", audit=AuditTrail("out/audit.jsonl"))
+```
+
+- **Records** use canonical keys (`asset_id`, `description`, `parent_id`, `plant`, `criticality`, `part_number`, ...); each template's `Field.source` shows the mapping.
+- **Validation** (required, max length, allowed values, duplicate keys, parent/self-parent checks) runs before export. Errors raise `ExportBlocked` unless `allow_errors=True`, in which case bad cells are highlighted and a `Validation` sheet is added.
+- **Excel** output has a styled header (required columns in red), frozen panes, filters, and a `Field Guide` sheet. `.csv` is also supported. Text starting with `=`, `+`, `-`, `@` is neutralised against formula injection.
+- **Audit**: append-only JSONL with timestamp, user, template, row/error counts, and file SHA-256; blocked attempts are logged too.
+
+Column names are standard SAP technical fields / common CMMS import headers; confirm against your system's configured import layout before loading. Run tests with `pip install -r requirements.txt && pytest`.
