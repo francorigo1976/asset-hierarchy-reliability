@@ -57,3 +57,7 @@ Mac/Linux: `./run.sh`  Windows: double-click `run.bat`. Then open http://127.0.0
 `dist/AssetHierarchy.html` is a single file: double-click it. It runs the Python app inside the browser (Pyodide, loaded from the jsDelivr CDN, so internet is needed on first load) and keeps data in the browser (localStorage). Rebuild with `python3 tools/build_standalone.py`.
 
 `dist/AssetHierarchy-offline.html` bundles the Python engine (about 8 MB) and works with no internet. Both files are built by `python3 tools/build_standalone.py`.
+
+## Photos
+
+Each location/equipment can hold photos: **Take photo** (camera) or **Add from files…**. Images are resized to max 1280 px JPEG and stored in the browser (IndexedDB), keyed by project and node; a 📷 count shows in the tree and photos are removed when their node is deleted. Photos are not part of the Excel exports and do not travel with the data between computers.

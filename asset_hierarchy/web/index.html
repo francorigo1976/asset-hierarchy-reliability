@@ -15,6 +15,11 @@ ul{list-style:none;margin:0;padding-left:18px}#tree>ul{padding-left:0}
 .n{display:flex;gap:6px;align-items:center;padding:3px 6px;border-radius:6px;cursor:pointer}.n:hover{background:var(--bg)}.n.sel{outline:2px solid var(--acc)}
 .tag{font-size:11px;color:var(--mut)}.fl{font-weight:600}.rev{color:var(--warn)}
 label{display:block;margin:6px 0 2px;color:var(--mut);font-size:12px}input,textarea{width:100%}
+.ph{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px;margin-top:6px}
+.ph div{position:relative}.ph img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:1px solid var(--line);cursor:pointer}
+.ph button{position:absolute;top:2px;right:2px;padding:0 6px;line-height:18px;border-radius:10px}
+#cam{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+#cam video{max-width:92vw;max-height:70vh;border-radius:8px}#cam.on{display:flex}
 .msg{white-space:pre-wrap;font-size:13px;margin-top:8px}.bad{color:var(--bad)}.warn{color:var(--warn)}
 table{border-collapse:collapse;width:100%;font-size:12px}td,th{border-bottom:1px solid var(--line);padding:3px 6px;text-align:left}
 </style></head><body>
@@ -35,6 +40,10 @@ table{border-collapse:collapse;width:100%;font-size:12px}td,th{border-bottom:1px
     <div class="card msg" id="out" style="margin-top:12px">Ready.</div>
   </div>
 </main>
+<div id="cam"><video id="camv" autoplay playsinline muted></video><div style="display:flex;gap:10px">
+<button class="p" id="snap">Take photo</button><button id="camx">Cancel</button></div></div>
+<input type="file" id="phfile" accept="image/*" multiple style="display:none">
+<input type="file" id="phcam" accept="image/*" capture="environment" style="display:none">
 <script>
 const $=s=>document.querySelector(s);let P=null,SEL=null;
 const api=async(u,o={})=>{const r=await fetch(u,o);if(!r.ok){let m=r.statusText;try{m=(await r.json()).detail}catch{}throw new Error(m)}return r};
@@ -43,17 +52,65 @@ const out=(t,c)=>{$('#out').className='card msg '+(c||'');$('#out').textContent=
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 async function projects(sel){const l=await (await api('/api/projects')).json();$('#proj').innerHTML=l.map(p=>`<option value="${p.id}">${esc(p.site)}</option>`).join('');
   if(sel)$('#proj').value=sel;if(l.length)await open($('#proj').value);else{P=null;render()}}
-async function open(id){P=await (await api('/api/projects/'+id)).json();SEL=null;render()}
+async function open(id){P=await (await api('/api/projects/'+id)).json();SEL=null;render();loadCounts()}
 function render(){
   const t=$('#tree');if(!P){t.innerHTML='<i class="tag">Create a project to begin.</i>';return}
   const by={};P.nodes.forEach(n=>(by[n.parent_id||'']??=[]).push(n));
   const li=pid=>(by[pid]||[]).map(n=>`<li><div class="n ${SEL==n.id?'sel':''}" data-id="${n.id}">
     <span>${n.is_area?'📁':'⚙'}</span><span class="${n.is_area?'fl':''}">${esc(n.description||n.name)}</span>
-    <span class="tag">${esc(n.is_area?n.floc_label:n.tag_number||n.asset_id)}</span>${n.catalog_code?`<span class="tag ${n.needs_catalog_review?'rev':''}">${esc(n.catalog_code)}</span>`:''}</div>
+    <span class="tag">${esc(n.is_area?n.floc_label:n.tag_number||n.asset_id)}</span>${n.catalog_code?`<span class="tag ${n.needs_catalog_review?'rev':''}">${esc(n.catalog_code)}</span>`:''}${PH[P.project.id+'/'+n.id]?`<span class="tag">📷${PH[P.project.id+'/'+n.id]}</span>`:''}</div>
     ${by[n.id]?`<ul>${li(n.id)}</ul>`:''}</li>`).join('');
   t.innerHTML='<ul>'+li('')+'</ul>';
   t.querySelectorAll('.n').forEach(e=>e.onclick=()=>{SEL=e.dataset.id;render();editor()});
 }
+
+/* ---- photos: stored in this browser (IndexedDB), resized JPEGs, keyed project/node ---- */
+let PH={};   // "pid/nid" -> count
+const idb=()=>new Promise((ok,bad)=>{const r=indexedDB.open('asset-hierarchy-photos',1);
+  r.onupgradeneeded=()=>{const st=r.result.createObjectStore('photos',{keyPath:'id',autoIncrement:true});st.createIndex('ref','ref')};
+  r.onsuccess=()=>ok(r.result);r.onerror=()=>bad(r.error)});
+const tx=async(mode,fn)=>{const db=await idb();return new Promise((ok,bad)=>{const t=db.transaction('photos',mode);let res;
+  t.oncomplete=()=>ok(res);t.onerror=()=>bad(t.error);res=fn(t.objectStore('photos'))})};
+const req=r=>new Promise((ok,bad)=>{r.onsuccess=()=>ok(r.result);r.onerror=()=>bad(r.error)});
+const refOf=nid=>P.project.id+'/'+nid;
+async function photosOf(nid){return tx('readonly',st=>req(st.index('ref').getAll(refOf(nid)))).then(x=>x)}
+async function loadCounts(){PH={};try{const db=await idb();const all=await req(db.transaction('photos').objectStore('photos').getAll());
+  all.forEach(r=>PH[r.ref]=(PH[r.ref]||0)+1)}catch(e){}render()}
+function toJpeg(src,max=1280,q=.82){return new Promise((ok,bad)=>{const im=new Image();im.onload=()=>{
+  const k=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
+  c.getContext('2d').drawImage(im,0,0,c.width,c.height);c.toBlob(b=>b?ok(b):bad(new Error('could not encode image')),'image/jpeg',q)};
+  im.onerror=()=>bad(new Error('not a readable image'));im.src=src})}
+async function addPhoto(nid,fileOrCanvasBlob,name){
+  const url=URL.createObjectURL(fileOrCanvasBlob);
+  try{const blob=await toJpeg(url);const db=await idb();
+    await new Promise((ok,bad)=>{const t=db.transaction('photos','readwrite');t.objectStore('photos').add({ref:refOf(nid),name:name||'photo',ts:new Date().toISOString(),blob});t.oncomplete=ok;t.onerror=()=>bad(t.error)});
+    PH[refOf(nid)]=(PH[refOf(nid)]||0)+1}finally{URL.revokeObjectURL(url)}}
+async function removePhotos(nids){const db=await idb();const refs=new Set(nids.map(refOf));
+  const all=await req(db.transaction('photos').objectStore('photos').getAll());
+  await new Promise(ok=>{const t=db.transaction('photos','readwrite');all.filter(r=>refs.has(r.ref)).forEach(r=>t.objectStore('photos').delete(r.id));t.oncomplete=ok});
+  refs.forEach(r=>delete PH[r])}
+async function showPhotos(nid){const box=$('#phgrid');if(!box)return;const list=await photosOf(nid);if(SEL!==nid)return;
+  box.innerHTML='';list.forEach(r=>{const u=URL.createObjectURL(r.blob),d=document.createElement('div');
+    d.innerHTML=`<img src="${u}" title="${esc(r.name)} · ${esc(r.ts.slice(0,16).replace('T',' '))}"><button class="d" title="Delete photo">×</button>`;
+    d.querySelector('img').onclick=()=>{const a=document.createElement('a');a.href=u;a.download=(r.name.replace(/\.[^.]+$/,'')||'photo')+'.jpg';a.target='_blank';a.click()};
+    d.querySelector('button').onclick=()=>run(async()=>{if(!confirm('Delete this photo?'))return;
+      const db=await idb();await new Promise(ok=>{const t=db.transaction('photos','readwrite');t.objectStore('photos').delete(r.id);t.oncomplete=ok});
+      PH[refOf(nid)]=Math.max(0,(PH[refOf(nid)]||1)-1);render();showPhotos(nid);out('Photo deleted.')});
+    box.appendChild(d)});
+  $('#phcount').textContent=list.length?`(${list.length})`:''}
+let STREAM=null;
+function closeCam(){if(STREAM){STREAM.getTracks().forEach(t=>t.stop());STREAM=null}$('#cam').classList.remove('on')}
+async function openCam(nid){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){$('#phcam').onchange=e=>filesIn(nid,e);$('#phcam').click();return}
+  try{STREAM=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+    $('#camv').srcObject=STREAM;$('#cam').classList.add('on');
+    $('#snap').onclick=()=>run(async()=>{const v=$('#camv'),c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;
+      c.getContext('2d').drawImage(v,0,0);const b=await new Promise(ok=>c.toBlob(ok,'image/jpeg',.9));
+      await addPhoto(nid,b,'camera-'+Date.now());closeCam();render();showPhotos(nid);out('Photo saved.')});
+    $('#camx').onclick=closeCam}
+  catch(e){closeCam();out('Camera unavailable ('+e.name+'). Choose a file instead.','warn');$('#phcam').onchange=ev=>filesIn(nid,ev);$('#phcam').click()}}
+const filesIn=(nid,e)=>run(async()=>{const fs=[...e.target.files];e.target.value='';let n=0;
+  for(const f of fs){await addPhoto(nid,f,f.name);n++}render();showPhotos(nid);out(n+' photo(s) added.')});
 const F=[['description','Description'],['tag_number','Tag'],['catalog_code','ZCM catalog'],['manufacturer','Manufacturer'],['model','Model'],['serial','Serial'],['year','Year'],['tann_part_no','Part no.'],['sap_name','SAP name (40)'],['notes','Notes']];
 function editor(){
   const n=P.nodes.find(x=>x.id==SEL);const e=$('#edit');if(!n){e.innerHTML='<i class="tag">Select a node</i>';return}
@@ -61,11 +118,15 @@ function editor(){
     F.map(([k,l])=>`<label>${l}</label><input data-k="${k}" value="${esc(n[k])}">`).join('')+
     `<label><input type="checkbox" id="also" style="width:auto" ${n.is_also_equipment?'checked':''}> Also equipment (1:1)</label>
     <label>Move under</label><select id="mv" style="width:100%"><option value="">(root)</option>${P.nodes.filter(x=>x.is_area&&x.id!=n.id).map(x=>`<option value="${x.id}" ${x.id==n.parent_id?'selected':''}>${esc(x.floc_label||x.description)}</option>`).join('')}</select>
+    <label>Photos <span id="phcount"></span></label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button id="phtake">📷 Take photo</button><button id="phadd">Add from files…</button></div>
+    <div class="ph" id="phgrid"></div>
     <div style="margin-top:10px;display:flex;gap:8px"><button class="p" id="sv">Save</button><button id="mvb">Move</button><button class="d" id="del">Delete</button></div>`;
+  $('#phtake').onclick=()=>openCam(n.id);$('#phadd').onclick=()=>{$('#phfile').onchange=ev=>filesIn(n.id,ev);$('#phfile').click()};showPhotos(n.id);
   $('#sv').onclick=()=>run(async()=>{const f={is_also_equipment:$('#also').checked};e.querySelectorAll('input[data-k]').forEach(i=>f[i.dataset.k]=i.value);
     P=await (await api(`/api/projects/${P.project.id}/nodes/${n.id}`,J('PATCH',f))).json();render();editor();out('Saved.')});
   $('#mvb').onclick=()=>run(async()=>{P=await (await api(`/api/projects/${P.project.id}/nodes/${n.id}/move`,J('POST',{parent_id:$('#mv').value||null}))).json();render();editor();out('Moved.')});
-  $('#del').onclick=()=>run(async()=>{if(!confirm('Delete this node and its children?'))return;P=await (await api(`/api/projects/${P.project.id}/nodes/${n.id}`,{method:'DELETE'})).json();SEL=null;render();editor();out('Deleted.')});
+  $('#del').onclick=()=>run(async()=>{if(!confirm('Delete this node and its children?'))return;const gone=[n.id,...P.nodes.filter(x=>x.id!==n.id).map(x=>x.id).filter(id=>{let c=P.nodes.find(y=>y.id===id);while(c){if(c.parent_id===n.id)return true;c=P.nodes.find(y=>y.id===c.parent_id)}return false})];P=await (await api(`/api/projects/${P.project.id}/nodes/${n.id}`,{method:'DELETE'})).json();removePhotos(gone);SEL=null;render();editor();out('Deleted.')});
 }
 const run=f=>f().catch(e=>out(e.message,'bad'));
 const add=(is_area,root)=>run(async()=>{if(!P)return;const d=prompt(is_area?'Location description':'Equipment description');if(!d)return;
