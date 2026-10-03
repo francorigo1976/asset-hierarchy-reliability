@@ -61,3 +61,7 @@ Mac/Linux: `./run.sh`  Windows: double-click `run.bat`. Then open http://127.0.0
 ## Photos
 
 Each location/equipment can hold photos: **Take photo** (camera) or **Add from files…**. Images are resized to max 1280 px JPEG and stored in the browser (IndexedDB), keyed by project and node; a 📷 count shows in the tree and photos are removed when their node is deleted. Photos are not part of the Excel exports and do not travel with the data between computers.
+
+## AI supplier & pricing search
+
+In the edit panel, **Find suppliers & pricing** sends the item (manufacturer, model, part no., description...) to the Anthropic Messages API with the web search tool, directly from the browser, and shows suppliers, prices, availability and sources. Set your API key under **🔑 AI** (stored only in this browser). Results are cached per node, can be added to Notes or downloaded as CSV, and are indicative only.

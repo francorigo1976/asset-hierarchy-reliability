@@ -20,6 +20,9 @@ label{display:block;margin:6px 0 2px;color:var(--mut);font-size:12px}input,texta
 .ph button{position:absolute;top:2px;right:2px;padding:0 6px;line-height:18px;border-radius:10px}
 #cam{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}
 #cam video{max-width:92vw;max-height:70vh;border-radius:8px}#cam.on{display:flex}
+.sup{width:100%;margin-top:6px}.sup td a{color:var(--acc);word-break:break-all}.sup .cf{font-size:11px;color:var(--mut)}
+dialog{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:10px;max-width:440px;width:92vw}
+dialog::backdrop{background:rgba(0,0,0,.5)}
 .msg{white-space:pre-wrap;font-size:13px;margin-top:8px}.bad{color:var(--bad)}.warn{color:var(--warn)}
 table{border-collapse:collapse;width:100%;font-size:12px}td,th{border-bottom:1px solid var(--line);padding:3px 6px;text-align:left}
 </style></head><body>
@@ -30,7 +33,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}td,th{border-bottom:1px
   <select id="tpl"></select>
   <button id="chk">Validate</button><button id="exp" class="p">Export</button>
   <label style="display:inline;margin:0"><input type="file" id="imp" accept=".xlsx" style="display:none"><button id="impb">Import SAP template…</button></label>
-  <button id="aud">Audit</button>
+  <button id="aud">Audit</button><button id="aikey" title="AI search settings">🔑 AI</button>
 </header>
 <main>
   <div class="card"><div style="margin-bottom:8px"><button id="addroot">+ Root location</button>
@@ -40,6 +43,12 @@ table{border-collapse:collapse;width:100%;font-size:12px}td,th{border-bottom:1px
     <div class="card msg" id="out" style="margin-top:12px">Ready.</div>
   </div>
 </main>
+<dialog id="aidlg"><form method="dialog"><b>AI web search settings</b>
+<label>Anthropic API key</label><input id="aik" type="password" placeholder="sk-ant-..." autocomplete="off">
+<label>Model</label><input id="aim" value="claude-opus-5-5">
+<label>Region / currency for prices (optional)</label><input id="aireg" placeholder="e.g. Canada, CAD">
+<p class="tag">The key is kept only in this browser (localStorage) and is sent only to api.anthropic.com. Each search uses your API credit (web searches are billed per use). Use a key with a spend limit; anyone with access to this browser profile can read it.</p>
+<div style="display:flex;gap:8px;justify-content:flex-end"><button value="cancel">Cancel</button><button class="p" id="aisave" value="ok">Save</button></div></form></dialog>
 <div id="cam"><video id="camv" autoplay playsinline muted></video><div style="display:flex;gap:10px">
 <button class="p" id="snap">Take photo</button><button id="camx">Cancel</button></div></div>
 <input type="file" id="phfile" accept="image/*" multiple style="display:none">
@@ -111,6 +120,67 @@ async function openCam(nid){
   catch(e){closeCam();out('Camera unavailable ('+e.name+'). Choose a file instead.','warn');$('#phcam').onchange=ev=>filesIn(nid,ev);$('#phcam').click()}}
 const filesIn=(nid,e)=>run(async()=>{const fs=[...e.target.files];e.target.value='';let n=0;
   for(const f of fs){await addPhoto(nid,f,f.name);n++}render();showPhotos(nid);out(n+' photo(s) added.')});
+
+/* ---- AI supplier & pricing search: browser -> api.anthropic.com (Messages API + web search tool) ---- */
+const AIK='asset-hierarchy-ai-v1';
+const aiCfg=()=>{try{return Object.assign({key:'',model:'claude-opus-5-5',region:''},JSON.parse(localStorage.getItem(AIK)||'{}'))}catch(e){return {key:'',model:'claude-opus-5-5',region:''}}};
+const aiSave=c=>{try{localStorage.setItem(AIK,JSON.stringify(c))}catch(e){}};
+function aiDialog(){return new Promise(ok=>{const c=aiCfg(),d=$('#aidlg');$('#aik').value=c.key;$('#aim').value=c.model;$('#aireg').value=c.region;
+  d.onclose=()=>{if(d.returnValue==='ok'){aiSave({key:$('#aik').value.trim(),model:$('#aim').value.trim()||'claude-opus-5-5',region:$('#aireg').value.trim()});ok(true)}else ok(false)};d.showModal()})}
+$('#aikey').onclick=()=>aiDialog();
+const QK=nid=>'asset-hierarchy-quotes/'+P.project.id+'/'+nid;
+const quotesOf=nid=>{try{return JSON.parse(localStorage.getItem(QK(nid))||'null')}catch(e){return null}};
+const AI_SYSTEM=`You are a procurement researcher for industrial maintenance, reliability and spare-parts work. Use the web search tool to identify the described equipment or part and find real suppliers with prices.
+Rules: never invent a price, URL, or supplier. Use null for anything you did not find. Only list URLs that appeared in your search results. State whether each price is a published list price, a quoted/advertised price, or an estimate, and its currency. Prefer authorised distributors and manufacturers, and include 3-8 suppliers when available. Be concise.
+Finish with ONE json code block (and nothing after it) shaped exactly like:
+{"identified":{"manufacturer":str|null,"model":str|null,"description":str|null,"confidence":"high"|"medium"|"low"},
+ "suppliers":[{"name":str,"url":str|null,"price":number|null,"currency":str|null,"price_type":"list"|"quoted"|"estimate"|null,"availability":str|null,"lead_time":str|null,"notes":str|null}],
+ "summary":str}`;
+function describeNode(n){const f=[['Description',n.description],['Manufacturer',n.manufacturer],['Model / type',n.model],['Part number',n.tann_part_no],['Serial',n.serial],['Year',n.year],['Rating',n.rating],['Tag',n.tag_number],['Catalog class',n.catalog_code],['SAP name',n.sap_name],['Notes',n.notes]];
+  return f.filter(([,v])=>v).map(([k,v])=>k+': '+v).join('\n')}
+async function aiSearch(n){
+  const c=aiCfg();if(!c.key)throw new Error('Add your Anthropic API key first (🔑 AI button).');
+  const tools=[{type:'web_search_20260209',name:'web_search',max_uses:6}];
+  const messages=[{role:'user',content:'Identify this item and find suppliers and current pricing'+(c.region?` for buyers in: ${c.region}`:'')+'.\n\n'+describeNode(n)}];
+  let sources=[],text='';
+  for(let turn=0;turn<4;turn++){
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':c.key,
+      'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:c.model,max_tokens:8000,system:AI_SYSTEM,tools,messages})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error((j.error&&j.error.message)||('API error '+r.status));
+    for(const b of j.content||[]){
+      if(b.type==='web_search_tool_result'&&Array.isArray(b.content))b.content.forEach(x=>x.url&&sources.push({title:x.title||x.url,url:x.url}));
+      if(b.type==='text')text+=b.text}
+    if(j.stop_reason==='pause_turn'){messages.push({role:'assistant',content:j.content});continue}   // server tool still working: resume
+    if(j.stop_reason==='refusal')throw new Error('The model declined this request.');
+    break}
+  const m=[...text.matchAll(/```json\s*([\s\S]*?)```/g)].pop();
+  let data=null;try{data=JSON.parse((m?m[1]:text.slice(text.indexOf('{'),text.lastIndexOf('}')+1)))}catch(e){}
+  if(!data)throw new Error('The AI answered, but not in a readable format. Try again.\n\n'+text.slice(0,300));
+  const seen=new Set();sources=sources.filter(s=>!seen.has(s.url)&&seen.add(s.url));
+  return {ts:new Date().toISOString(),model:c.model,data,sources}}
+const safeUrl=u=>{try{const x=new URL(u);return /^https?:$/.test(x.protocol)?x.href:''}catch(e){return ''}};
+const money=(p,c)=>p==null?'—':(c?c+' ':'')+Number(p).toLocaleString(undefined,{maximumFractionDigits:2});
+function renderQuotes(nid){const box=$('#supbox');if(!box)return;const q=quotesOf(nid);if(!q){box.innerHTML='';return}
+  const d=q.data,id=d.identified||{},rows=(d.suppliers||[]).map(s=>{const u=safeUrl(s.url);return `<tr><td>${u?`<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(s.name||u)}</a>`:esc(s.name)}</td>
+    <td>${esc(money(s.price,s.currency))}<div class="cf">${esc(s.price_type||'')}</div></td><td>${esc([s.availability,s.lead_time].filter(Boolean).join(' · '))}<div class="cf">${esc(s.notes||'')}</div></td></tr>`}).join('');
+  box.innerHTML=`<div class="tag" style="margin-top:6px">Identified: ${esc([id.manufacturer,id.model,id.description].filter(Boolean).join(' · ')||'not identified')}${id.confidence?` (${esc(id.confidence)} confidence)`:''}</div>
+    ${rows?`<table class="sup"><tr><th>Supplier</th><th>Price</th><th>Availability</th></tr>${rows}</table>`:'<div class="tag">No suppliers found.</div>'}
+    <div class="msg" style="margin-top:6px">${esc(d.summary||'')}</div>
+    <div class="cf">Searched ${esc(q.ts.slice(0,16).replace('T',' '))} with ${esc(q.model)}. AI-generated from web results — prices are indicative only; verify with the supplier before purchasing.</div>
+    <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap"><button id="supnote">Add summary to notes</button><button id="supcsv">Download CSV</button></div>`;
+  $('#supnote').onclick=()=>run(async()=>{const n=P.nodes.find(x=>x.id==nid);const line='['+q.ts.slice(0,10)+' AI price check] '+(d.suppliers||[]).slice(0,5).map(s=>`${s.name}: ${money(s.price,s.currency)}`).join('; ');
+    P=await (await api(`/api/projects/${P.project.id}/nodes/${nid}`,J('PATCH',{notes:(n.notes?n.notes+'\n':'')+line}))).json();render();editor();out('Added to notes.')});
+  $('#supcsv').onclick=()=>{const q2=v=>'"'+String(v??'').replace(/"/g,'""').replace(/^([=+\-@])/,"'$1")+'"';
+    const csv=['Supplier,URL,Price,Currency,Price type,Availability,Lead time,Notes',...(d.suppliers||[]).map(s=>[s.name,s.url,s.price,s.currency,s.price_type,s.availability,s.lead_time,s.notes].map(q2).join(','))].join('\n');
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='suppliers.csv';a.click()}}
+async function runSupplierSearch(nid){const n=P.nodes.find(x=>x.id==nid);
+  if(!n.manufacturer&&!n.model&&!n.tann_part_no&&!n.description){out('Add at least a description, manufacturer or model first.','warn');return}
+  if(!aiCfg().key&&!(await aiDialog()))return;
+  out('Searching the web with AI… this can take 20–60 seconds.');const btn=$('#supgo');if(btn)btn.disabled=true;
+  try{const res=await aiSearch(n);localStorage.setItem(QK(nid),JSON.stringify(res));out('Found '+((res.data.suppliers||[]).length)+' supplier(s).');if(SEL===nid)renderQuotes(nid)}
+  catch(e){out(e.message,'bad')}finally{if(btn)btn.disabled=false}}
 const F=[['description','Description'],['tag_number','Tag'],['catalog_code','ZCM catalog'],['manufacturer','Manufacturer'],['model','Model'],['serial','Serial'],['year','Year'],['tann_part_no','Part no.'],['sap_name','SAP name (40)'],['notes','Notes']];
 function editor(){
   const n=P.nodes.find(x=>x.id==SEL);const e=$('#edit');if(!n){e.innerHTML='<i class="tag">Select a node</i>';return}
@@ -118,10 +188,13 @@ function editor(){
     F.map(([k,l])=>`<label>${l}</label><input data-k="${k}" value="${esc(n[k])}">`).join('')+
     `<label><input type="checkbox" id="also" style="width:auto" ${n.is_also_equipment?'checked':''}> Also equipment (1:1)</label>
     <label>Move under</label><select id="mv" style="width:100%"><option value="">(root)</option>${P.nodes.filter(x=>x.is_area&&x.id!=n.id).map(x=>`<option value="${x.id}" ${x.id==n.parent_id?'selected':''}>${esc(x.floc_label||x.description)}</option>`).join('')}</select>
+    <label>Suppliers &amp; pricing (AI web search)</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button id="supgo">💲 Find suppliers &amp; pricing</button></div><div id="supbox"></div>
     <label>Photos <span id="phcount"></span></label>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button id="phtake">📷 Take photo</button><button id="phadd">Add from files…</button></div>
     <div class="ph" id="phgrid"></div>
     <div style="margin-top:10px;display:flex;gap:8px"><button class="p" id="sv">Save</button><button id="mvb">Move</button><button class="d" id="del">Delete</button></div>`;
+  $('#supgo').onclick=()=>runSupplierSearch(n.id);renderQuotes(n.id);
   $('#phtake').onclick=()=>openCam(n.id);$('#phadd').onclick=()=>{$('#phfile').onchange=ev=>filesIn(n.id,ev);$('#phfile').click()};showPhotos(n.id);
   $('#sv').onclick=()=>run(async()=>{const f={is_also_equipment:$('#also').checked};e.querySelectorAll('input[data-k]').forEach(i=>f[i.dataset.k]=i.value);
     P=await (await api(`/api/projects/${P.project.id}/nodes/${n.id}`,J('PATCH',f))).json();render();editor();out('Saved.')});
