@@ -65,3 +65,17 @@ Each location/equipment can hold photos: **Take photo** (camera) or **Add from f
 ## AI supplier & pricing search
 
 In the edit panel, **Find suppliers & pricing** sends the item (manufacturer, model, part no., description...) to the Anthropic Messages API with the web search tool, directly from the browser, and shows suppliers, prices, availability and sources. Set your API key under **🔑 AI** (stored only in this browser). Results are cached per node, can be added to Notes or downloaded as CSV, and are indicative only.
+
+## PM Completion Register (technician template)
+
+`pm_register/index.html` (copied to `dist/PMCompletionRegister.html`) is a single self-contained file — no install, no server, works offline. It replaces the asset-hierarchy UI as the technician-facing app. Technicians complete one record after each PM:
+
+1. PM details (PM drop-down, WO/PM order, reference, frequency, department, scope, date, start/end → duration, personnel)
+2. Safety wear (required / worn)
+3. Permits & isolation gate (permit, LOTO, gas test, second-person verification + signature)
+4. Equipment in scope · 5. Parts & materials used · 6. Tasks & steps (how / acceptance / Pass-Fail-N/A / recorded value)
+7. Measurements (target, acceptance, measured, Pass/Fail) · 8. Return to service + overall result
+9. Defects & findings (WO, priority, assignee) + additional work for Planner · 10. Photos (camera or file, captions)
+11. Sign-off (carried out by / reviewed by, drawn signatures)
+
+The PM drop-down is seeded with four PM titles only; add, rename or remove titles under *Manage PM list*. Records autosave in the browser; the register can be searched/filtered, copied as a starting point for the next PM, exported to Excel (7 sheets), printed to PDF, and backed up/restored as JSON.

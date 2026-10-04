@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PM Completion Register</title>
+<style>
+:root{--bg:#f4f6f9;--fg:#1b2330;--card:#fff;--mut:#667085;--line:#d6dbe3;--acc:#1f6feb;--acc2:#e8f0fe;--bad:#c62828;--ok:#1a7f45;--warn:#b26a00}
+@media (prefers-color-scheme:dark){:root{--bg:#11151b;--fg:#e6e9ef;--card:#1a2029;--mut:#98a2b3;--line:#2e3744;--acc:#4c8dff;--acc2:#1d2a40;--bad:#ef6a6a;--ok:#4cc27f;--warn:#e0a040}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--line)}
+header h1{font-size:17px;margin:0 8px 0 0}main{max-width:1100px;margin:0 auto;padding:14px 16px 60px}
+button,select,input,textarea{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:38px}
+button{cursor:pointer}button.p{background:var(--acc);border-color:var(--acc);color:#fff}button.d{color:var(--bad)}button.s{min-height:30px;padding:3px 9px;font-size:13px}
+input,select,textarea{width:100%}input[type=checkbox],input[type=radio]{width:20px;height:20px;min-height:0;padding:0}textarea{resize:vertical;min-height:38px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+.card h2{margin:0 0 10px;font-size:16px;display:flex;align-items:center;gap:8px;justify-content:space-between}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}label.f{display:block;font-size:12px;color:var(--mut)}label.f>*{margin-top:3px;color:var(--fg)}
+table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;vertical-align:top;font-size:14px}th{font-size:12px;color:var(--mut);font-weight:600}
+.tbl{overflow-x:auto}.tbl td input,.tbl td select,.tbl td textarea{min-height:34px;padding:5px 7px}.tbl td.x{width:34px}
+.tag{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--acc2);color:var(--acc);white-space:nowrap}.tag.ok{background:transparent;color:var(--ok);border:1px solid var(--ok)}.tag.bad{color:var(--bad);border:1px solid var(--bad);background:transparent}.tag.warn{color:var(--warn);border:1px solid var(--warn);background:transparent}
+.task{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px}.step{border-top:1px dashed var(--line);padding:8px 0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.grow{flex:1;min-width:160px}.mut{color:var(--mut);font-size:13px}
+.pass{color:var(--ok)}.fail{color:var(--bad)}
+.ph{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}.ph div{position:relative}.ph img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.ph button{position:absolute;top:4px;right:4px;padding:0 8px;min-height:24px}.ph input{margin-top:4px;min-height:30px;font-size:13px}
+canvas.sig{width:100%;max-width:420px;height:110px;border:1px dashed var(--mut);border-radius:8px;background:#fff;touch-action:none}
+#cam{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}#cam.on{display:flex}#cam video{max-width:92vw;max-height:70vh;border-radius:8px}
+dialog{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:12px;width:min(520px,92vw)}dialog::backdrop{background:rgba(0,0,0,.5)}
+.pmrow{display:flex;gap:6px;margin:6px 0}.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:99px;z-index:30;display:none}
+.sigimg{max-height:70px;background:#fff;border:1px solid var(--line);border-radius:6px}
+@media print{header,.noprint,#cam,.toast,button{display:none!important}body{background:#fff;color:#000}.card{border:1px solid #999;break-inside:avoid}main{padding:0;max-width:none}input,select,textarea{border:none;padding:0;background:none;appearance:none;-webkit-appearance:none}}
+</style></head><body>
+<header>
+  <h1>PM Completion Register</h1>
+  <button id="bList">Register</button><button id="bNew" class="p">+ New PM completion</button>
+  <span style="flex:1"></span>
+  <button id="bPm">Manage PM list</button><button id="bXlsx">Export Excel</button><button id="bBackup">Backup / restore</button>
+</header>
+<main id="main"></main>
+<div id="cam"><video id="camv" autoplay playsinline muted></video><div class="row"><button class="p" id="snap">Take photo</button><button id="camx">Cancel</button></div></div>
+<input type="file" id="phfile" accept="image/*" multiple hidden><input type="file" id="restore" accept=".json" hidden>
+<dialog id="pmdlg"><form method="dialog"><b>PM list</b><div class="mut">These feed the PM drop-down. Add your own; rename or remove any.</div><div id="pmlist"></div>
+<div class="pmrow"><input id="pmnew" placeholder="New PM title…"><button type="button" id="pmadd" class="p">Add</button></div>
+<div class="row" style="justify-content:flex-end;margin-top:8px"><button value="close">Close</button></div></form></dialog>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));
+const KEY='pm-completion-register-v1';
+/* ---------- starting PM list: titles only, from the first four procedures supplied ---------- */
+const SEED_PMS=['OR-TR2-1M:INSP-BAGSLR — SAFETY FUNCTION TEST INCLUDED','1M:INSP-FIFE-OR-TR2 OFFLINE','1M:INSP-HOIST — SAFE -OR-TR2-','1M:INSP-MIX- OR-TR2- 05 - ISOLATED'];
+const FREQ=['Daily','Weekly','Fortnightly','Monthly','Quarterly','6-Monthly','Annual','Other'];
+const DEPT=['Mechanical','E&I (Electrical / Instrumentation)','Operations','Mechanical + E&I','Other'];
+const PPE=['Safety glasses / goggles','Steel-toe boots','Hard hat','Hearing protection','Gloves (task-appropriate)','Hi-visibility clothing','Face shield','Respiratory protection (as required)','Arc-flash / FR clothing','Fall protection / harness (work at height)'];
+const ISO=['Equipment stopped and Operations notified','Permit to work in place and risk assessment completed','Electrical supply isolated, locked out and tagged out; zero voltage proved','Compressed air / hydraulic / other stored energy isolated and released','As-found condition recorded before work started'];
+const RTS=['All guards and covers refitted with every fastener; area cleared of tools and waste','Locks and tags removed in a controlled sequence','Functional test completed and acceptable','Settings returned to the as-found / specified values','Operations notified that the equipment is returned to service'];
+let S=load();
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY)||'null');if(s&&s.pms&&s.records)return s}catch(e){}
+  return {pms:SEED_PMS.map(t=>({id:uid(),title:t})),records:[],view:'list',cur:null}}
+let saveT;const flush=()=>{clearTimeout(saveT);try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Could not save — storage full? Export a backup.')}};
+function save(){clearTimeout(saveT);saveT=setTimeout(flush,250)}
+addEventListener('pagehide',flush);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flush()});
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',2600)}
+const today=()=>new Date().toISOString().slice(0,10);
+function blank(pm){return {id:uid(),created:new Date().toISOString(),updated:'',status:'draft',pmId:pm?pm.id:'',pmTitle:pm?pm.title:'',ref:'',wo:'',frequency:'Monthly',department:'Mechanical',site:'',scope:'',docNo:'',
+  date:today(),start:'',end:'',personPlanned:'1',personActual:'1',ppe:PPE.map(i=>({item:i,required:false,worn:false})),
+  permitNo:'',lotoNo:'',gasTest:'',zeroEnergy:'',isolation:ISO.map(t=>({text:t,yn:''})),isoName:'',isoPos:'',isoSig:'',
+  equipment:[{tag:'',model:'',detail:'',serial:'',notes:''}],parts:[{desc:'',partNo:'',qtyReq:'',qtyUsed:''}],materials:[{desc:'',qty:''}],
+  tasks:[{title:'',accept:'',done:'',steps:[{text:'',how:'',accept:'',result:'',record:''}]}],
+  measures:[{param:'',target:'',accept:'',measured:'',result:''}],rts:RTS.map(t=>({text:t,yn:''})),
+  overall:'',defects:[{finding:'',wo:'',priority:'',assigned:''}],additional:'',byName:'',byDate:today(),bySig:'',revName:'',revDate:'',revSig:''}}
+const cur=()=>S.records.find(r=>r.id===S.cur);
+const getp=(o,p)=>p.split('.').reduce((a,k)=>a==null?a:a[k],o);
+function setp(o,p,v){const k=p.split('.');const l=k.pop();const t=k.reduce((a,x)=>a[x],o);t[l]=v}
+/* ---------- helpers for form pieces ---------- */
+const inp=(p,v,ph='',t='text')=>`<input data-p="${p}" type="${t}" value="${esc(v)}" placeholder="${esc(ph)}">`;
+const area=(p,v,ph='')=>`<textarea data-p="${p}" rows="1" placeholder="${esc(ph)}">${esc(v)}</textarea>`;
+const sel=(p,v,opts,blankLbl='—')=>`<select data-p="${p}"><option value="">${blankLbl}</option>${opts.map(o=>`<option ${o===v?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
+const yn=(p,v)=>sel(p,v,['Y','N','N/A']);
+const fld=(l,h)=>`<label class="f">${l}${h}</label>`;
+const rmBtn=(a,i,j)=>`<button class="s d" data-act="${a}" data-i="${i}" ${j!=null?`data-j="${j}"`:''} title="Remove">✕</button>`;
+function table(heads,rows){return `<div class="tbl"><table><tr>${heads.map(h=>`<th>${h}</th>`).join('')}<th></th></tr>${rows}</table></div>`}
+/* ---------- list view ---------- */
+function stat(r){return r.status==='reviewed'?'<span class="tag ok">Reviewed</span>':r.status==='completed'?'<span class="tag ok">Completed</span>':'<span class="tag warn">Draft</span>'}
+const nFail=r=>r.tasks.reduce((n,t)=>n+t.steps.filter(s=>s.result==='Fail').length,0)+r.measures.filter(m=>m.result==='Fail').length;
+const nDef=r=>r.defects.filter(d=>d.finding.trim()).length;
+function hours(r){if(!r.start||!r.end)return '';const [a,b]=[r.start,r.end].map(x=>{const[h,m]=x.split(':').map(Number);return h*60+m});let d=b-a;if(d<0)d+=1440;return +(d/60).toFixed(2)}
+let F={q:'',pm:'',status:''};
+function viewList(){
+  const rows=S.records.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||b.created.localeCompare(a.created))
+   .filter(r=>(!F.pm||r.pmId===F.pm)&&(!F.status||r.status===F.status)&&(!F.q||JSON.stringify([r.pmTitle,r.ref,r.wo,r.scope,r.byName]).toLowerCase().includes(F.q.toLowerCase())));
+  $('#main').innerHTML=`<div class="card"><h2>Register <span class="mut">${S.records.length} record(s)</span></h2>
+   <div class="row" style="margin-bottom:10px"><input class="grow" id="fq" placeholder="Search PM, WO, equipment, technician…" value="${esc(F.q)}">
+   <select id="fpm" style="max-width:300px"><option value="">All PMs</option>${S.pms.map(p=>`<option value="${p.id}" ${F.pm===p.id?'selected':''}>${esc(p.title)}</option>`).join('')}</select>
+   <select id="fst" style="max-width:150px"><option value="">Any status</option>${['draft','completed','reviewed'].map(s=>`<option ${F.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+   ${rows.length?`<div class="tbl"><table><tr><th>Date</th><th>PM</th><th>WO / ref</th><th>Equipment scope</th><th>Technician</th><th>Hrs</th><th>Fails</th><th>Defects</th><th>Status</th><th></th></tr>
+   ${rows.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.pmTitle||'—')}</td><td>${esc(r.wo||r.ref)}</td><td>${esc(r.scope)}</td><td>${esc(r.byName)}</td><td>${hours(r)}</td>
+    <td class="${nFail(r)?'fail':''}">${nFail(r)}</td><td>${nDef(r)}</td><td>${stat(r)}</td>
+    <td style="white-space:nowrap"><button class="s" data-open="${r.id}">Open</button> <button class="s" data-copy="${r.id}" title="New record from this one">Copy</button> <button class="s d" data-del="${r.id}">Delete</button></td></tr>`).join('')}</table></div>`
+   :`<p class="mut">No records yet. Click <b>+ New PM completion</b> after your next PM.</p>`}</div>`;
+  $('#fq').oninput=e=>{F.q=e.target.value;const p=e.target.selectionStart;viewList();$('#fq').focus();$('#fq').setSelectionRange(p,p)};
+  $('#fpm').onchange=e=>{F.pm=e.target.value;viewList()};$('#fst').onchange=e=>{F.status=e.target.value;viewList()};
+  document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openRec(b.dataset.open));
+  document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>{const r=JSON.parse(JSON.stringify(S.records.find(x=>x.id===b.dataset.copy)));
+    Object.assign(r,{id:uid(),created:new Date().toISOString(),status:'draft',date:today(),start:'',end:'',wo:'',ref:'',bySig:'',revSig:'',revName:'',revDate:'',isoSig:'',additional:'',overall:''});
+    r.isolation.forEach(x=>x.yn='');r.rts.forEach(x=>x.yn='');r.ppe.forEach(x=>x.worn=false);
+    r.tasks.forEach(t=>{t.done='';t.steps.forEach(s=>{s.result='';s.record=''})});r.measures.forEach(m=>{m.measured='';m.result=''});r.defects=[{finding:'',wo:'',priority:'',assigned:''}];
+    S.records.push(r);S.cur=r.id;S.view='rec';save();render();toast('Copied the structure — results cleared.')});
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this record and its photos?'))return;const id=b.dataset.del;S.records=S.records.filter(r=>r.id!==id);await delPhotos(id);save();render()});
+}
+/* ---------- record form ---------- */
+function openRec(id){S.cur=id;S.view='rec';save();render()}
+function viewRec(){
+  const r=cur();if(!r){S.view='list';return viewList()}
+  const pmOpts=S.pms.map(p=>`<option value="${p.id}" ${p.id===r.pmId?'selected':''}>${esc(p.title)}</option>`).join('');
+  $('#main').innerHTML=`
+  <div class="card noprint row"><div class="grow"><b>${esc(r.pmTitle||'New PM completion')}</b> ${stat(r)}<div class="mut">Saved automatically on this device.</div></div>
+   <button id="rCheck">Check completeness</button><button id="rPrint">Print / PDF</button><button id="rDone" class="p">Mark completed</button></div>
+
+  <div class="card"><h2>1 · PM details</h2><div class="grid">
+   <label class="f">PM (drop-down)<select id="pmsel"><option value="">— choose a PM —</option>${pmOpts}<option value="__new">＋ Add a new PM to the list…</option></select></label>
+   ${fld('WO / PM order no.',inp('wo',r.wo))}${fld('PM reference',inp('ref',r.ref))}${fld('Document no. / rev',inp('docNo',r.docNo))}
+   ${fld('Frequency',sel('frequency',r.frequency,FREQ))}${fld('Department',sel('department',r.department,DEPT))}
+   ${fld('Site / location',inp('site',r.site))}${fld('Equipment scope (FLOC / asset)',inp('scope',r.scope))}
+   ${fld('Date performed',inp('date',r.date,'','date'))}${fld('Start time',inp('start',r.start,'','time'))}${fld('End time',inp('end',r.end,'','time'))}
+   ${fld('Personnel planned',inp('personPlanned',r.personPlanned,'','number'))}${fld('Personnel actual',inp('personActual',r.personActual,'','number'))}
+   <div class="mut" style="align-self:end">Duration: <b>${hours(r)||'—'}</b> h</div></div></div>
+
+  <div class="card"><h2>2 · Safety wear</h2>${table(['#','Item','Required','Worn / confirmed'],r.ppe.map((p,i)=>`<tr><td>${i+1}</td><td>${esc(p.item)}</td>
+   <td><input type="checkbox" data-p="ppe.${i}.required" ${p.required?'checked':''}></td><td><input type="checkbox" data-p="ppe.${i}.worn" ${p.worn?'checked':''}></td><td></td></tr>`).join(''))}</div>
+
+  <div class="card"><h2>3 · Permits &amp; isolation (gate — all answered before work starts)</h2><div class="grid">
+   ${fld('Permit to work no.',inp('permitNo',r.permitNo))}${fld('LOTO / lock-out no.',inp('lotoNo',r.lotoNo))}${fld('Area gas test (%LFL)',inp('gasTest',r.gasTest))}${fld('Zero-energy verified by',inp('zeroEnergy',r.zeroEnergy))}</div>
+   ${table(['Isolation check','Y / N / N/A'],r.isolation.map((x,i)=>`<tr><td>${inp('isolation.'+i+'.text',x.text)}</td><td style="width:110px">${yn('isolation.'+i+'.yn',x.yn)}</td><td class="x">${rmBtn('rmIso',i)}</td></tr>`).join(''))}
+   <button class="s" data-act="addIso">+ Add check</button>
+   <h3 style="font-size:14px;margin:14px 0 6px">Isolation verified by a second person</h3><div class="grid">${fld('Name',inp('isoName',r.isoName))}${fld('Position',inp('isoPos',r.isoPos))}</div>${sigBox('isoSig',r.isoSig,'Signature')}</div>
+
+  <div class="card"><h2>4 · Equipment in scope <button class="s" data-act="addEq">+ Add</button></h2>
+   ${table(['Asset / tag','Model / description','Rating / detail','Serial','Notes'],r.equipment.map((e,i)=>`<tr><td>${inp('equipment.'+i+'.tag',e.tag)}</td><td>${inp('equipment.'+i+'.model',e.model)}</td><td>${inp('equipment.'+i+'.detail',e.detail)}</td><td>${inp('equipment.'+i+'.serial',e.serial)}</td><td>${inp('equipment.'+i+'.notes',e.notes)}</td><td class="x">${rmBtn('rmEq',i)}</td></tr>`).join(''))}</div>
+
+  <div class="card"><h2>5 · Parts &amp; materials used</h2>
+   <b class="mut">Parts <button class="s" data-act="addPart">+ Add</button></b>
+   ${table(['Part description','Part no.','Qty required','Qty used'],r.parts.map((e,i)=>`<tr><td>${inp('parts.'+i+'.desc',e.desc)}</td><td>${inp('parts.'+i+'.partNo',e.partNo)}</td><td>${inp('parts.'+i+'.qtyReq',e.qtyReq)}</td><td>${inp('parts.'+i+'.qtyUsed',e.qtyUsed)}</td><td class="x">${rmBtn('rmPart',i)}</td></tr>`).join(''))}
+   <b class="mut">Materials / consumables <button class="s" data-act="addMat">+ Add</button></b>
+   ${table(['Material / consumable','Qty / unit'],r.materials.map((e,i)=>`<tr><td>${inp('materials.'+i+'.desc',e.desc)}</td><td>${inp('materials.'+i+'.qty',e.qty)}</td><td class="x">${rmBtn('rmMat',i)}</td></tr>`).join(''))}</div>
+
+  <div class="card"><h2>6 · Tasks &amp; steps <button class="s" data-act="addTask">+ Add task</button></h2>
+   ${r.tasks.map((t,i)=>`<div class="task"><div class="row">${fld('Task title',inp('tasks.'+i+'.title',t.title,'e.g. Task 1 — …')).replace('<label class="f">','<label class="f grow">')}
+     <label class="f" style="width:150px">Task complete${yn('tasks.'+i+'.done',t.done)}</label>${rmBtn('rmTask',i)}</div>
+     ${fld('Acceptance criteria for the task',area('tasks.'+i+'.accept',t.accept))}
+     ${t.steps.map((s,j)=>`<div class="step"><div class="row"><b class="mut">Step ${j+1}</b><span style="flex:1"></span>${rmBtn('rmStep',i,j)}</div><div class="grid">
+       ${fld('Step / work done',area('tasks.'+i+'.steps.'+j+'.text',s.text))}${fld('How / method',area('tasks.'+i+'.steps.'+j+'.how',s.how))}${fld('Acceptance',area('tasks.'+i+'.steps.'+j+'.accept',s.accept))}
+       ${fld('Result',sel('tasks.'+i+'.steps.'+j+'.result',s.result,['Pass','Fail','N/A']))}${fld('Recorded value / comment',area('tasks.'+i+'.steps.'+j+'.record',s.record))}</div></div>`).join('')}
+     <button class="s" data-act="addStep" data-i="${i}">+ Add step</button></div>`).join('')}</div>
+
+  <div class="card"><h2>7 · Measurements <button class="s" data-act="addMeas">+ Add</button></h2>
+   ${table(['Parameter','Target / limit','Acceptance','Measured','Pass / Fail'],r.measures.map((m,i)=>`<tr><td>${inp('measures.'+i+'.param',m.param)}</td><td>${inp('measures.'+i+'.target',m.target)}</td><td>${inp('measures.'+i+'.accept',m.accept)}</td><td>${inp('measures.'+i+'.measured',m.measured)}</td><td style="width:100px">${sel('measures.'+i+'.result',m.result,['Pass','Fail','N/A'])}</td><td class="x">${rmBtn('rmMeas',i)}</td></tr>`).join(''))}</div>
+
+  <div class="card"><h2>8 · Return to service</h2>
+   ${table(['Check','Y / N / N/A'],r.rts.map((x,i)=>`<tr><td>${inp('rts.'+i+'.text',x.text)}</td><td style="width:110px">${yn('rts.'+i+'.yn',x.yn)}</td><td class="x">${rmBtn('rmRts',i)}</td></tr>`).join(''))}
+   <button class="s" data-act="addRts">+ Add check</button>
+   <div class="grid" style="margin-top:10px">${fld('Overall result',sel('overall',r.overall,['Complete — no findings','Complete — findings raised','Partially complete','Not completed']))}</div></div>
+
+  <div class="card"><h2>9 · Defects &amp; findings <button class="s" data-act="addDef">+ Add</button></h2>
+   ${table(['Defect / finding','Notification / WO','Priority','Assigned to'],r.defects.map((d,i)=>`<tr><td>${area('defects.'+i+'.finding',d.finding)}</td><td>${inp('defects.'+i+'.wo',d.wo)}</td><td style="width:120px">${sel('defects.'+i+'.priority',d.priority,['1 – Urgent','2 – High','3 – Medium','4 – Low'])}</td><td>${inp('defects.'+i+'.assigned',d.assigned)}</td><td class="x">${rmBtn('rmDef',i)}</td></tr>`).join(''))}
+   ${fld('Additional work required / feedback to Planner (describe work, parts and materials)',area('additional',r.additional))}</div>
+
+  <div class="card"><h2>10 · Photos <span class="noprint row"><button class="s" id="phTake">📷 Take photo</button><button class="s" id="phAdd">Add from files…</button></span></h2><div class="ph" id="phgrid"></div></div>
+
+  <div class="card"><h2>11 · Sign-off</h2><div class="grid">
+   <div><b class="mut">Carried out by</b>${fld('Print name',inp('byName',r.byName))}${fld('Date',inp('byDate',r.byDate,'','date'))}${sigBox('bySig',r.bySig,'Signature')}</div>
+   <div><b class="mut">Reviewed by</b>${fld('Print name',inp('revName',r.revName))}${fld('Date',inp('revDate',r.revDate,'','date'))}${sigBox('revSig',r.revSig,'Signature')}</div></div></div>`;
+  wireForm(r);
+}
+function sigBox(p,val,label){return `<div class="mut" style="margin-top:8px">${label}</div>${val?`<img class="sigimg" src="${val}"> `:''}<canvas class="sig noprint" data-sig="${p}" width="840" height="220"></canvas><button class="s noprint" data-sigclr="${p}">Clear signature</button>`}
+function wireForm(r){
+  const m=$('#main');
+  m.querySelectorAll('[data-p]').forEach(el=>{const h=()=>{const v=el.type==='checkbox'?el.checked:el.value;setp(r,el.dataset.p,v);r.updated=new Date().toISOString();save();
+      if(el.tagName==='TEXTAREA')fit(el);if(['start','end'].includes(el.dataset.p)||el.dataset.p.startsWith('tasks')||el.dataset.p.startsWith('measures'))refreshHead(r)};
+    el.addEventListener('input',h);el.addEventListener('change',h);if(el.tagName==='TEXTAREA')fit(el)});
+  const A={addIso:()=>r.isolation.push({text:'',yn:''}),addRts:()=>r.rts.push({text:'',yn:''}),addEq:()=>r.equipment.push({tag:'',model:'',detail:'',serial:'',notes:''}),
+    addPart:()=>r.parts.push({desc:'',partNo:'',qtyReq:'',qtyUsed:''}),addMat:()=>r.materials.push({desc:'',qty:''}),addMeas:()=>r.measures.push({param:'',target:'',accept:'',measured:'',result:''}),
+    addDef:()=>r.defects.push({finding:'',wo:'',priority:'',assigned:''}),addTask:()=>r.tasks.push({title:'',accept:'',done:'',steps:[{text:'',how:'',accept:'',result:'',record:''}]}),
+    addStep:i=>r.tasks[i].steps.push({text:'',how:'',accept:'',result:'',record:''}),
+    rmIso:i=>r.isolation.splice(i,1),rmRts:i=>r.rts.splice(i,1),rmEq:i=>r.equipment.splice(i,1),rmPart:i=>r.parts.splice(i,1),rmMat:i=>r.materials.splice(i,1),
+    rmMeas:i=>r.measures.splice(i,1),rmDef:i=>r.defects.splice(i,1),rmTask:i=>{if(confirm('Remove this task and its steps?'))r.tasks.splice(i,1)},rmStep:(i,j)=>r.tasks[i].steps.splice(j,1)};
+  m.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{const f=A[b.dataset.act];if(!f)return;const y=scrollY;f(+b.dataset.i,+b.dataset.j);save();viewRec();scrollTo(0,y)});
+  $('#pmsel').onchange=e=>{const v=e.target.value;if(v==='__new'){const t=prompt('New PM title');if(t&&t.trim()){const p={id:uid(),title:t.trim()};S.pms.push(p);r.pmId=p.id;r.pmTitle=p.title;save();viewRec()}else e.target.value=r.pmId;return}
+    const p=S.pms.find(x=>x.id===v);r.pmId=v;r.pmTitle=p?p.title:'';save();$('#main .card b').textContent=r.pmTitle||'New PM completion'};
+  m.querySelectorAll('canvas.sig').forEach(c=>sigPad(c,r));
+  m.querySelectorAll('[data-sigclr]').forEach(b=>b.onclick=()=>{r[b.dataset.sigclr]='';save();viewRec()});
+  $('#rPrint').onclick=()=>window.print();$('#rCheck').onclick=()=>alert(completeness(r).join('\n')||'Nothing missing — ready to mark completed.');
+  $('#rDone').onclick=()=>{const miss=completeness(r);if(miss.length&&!confirm('Still missing:\n\n'+miss.join('\n')+'\n\nMark completed anyway?'))return;r.status=r.revName?'reviewed':'completed';save();toast('Marked '+r.status+'.');viewRec()};
+  $('#phTake').onclick=()=>openCam(r.id);$('#phAdd').onclick=()=>{$('#phfile').onchange=e=>filesIn(r.id,e);$('#phfile').click()};showPhotos(r.id);
+}
+const fit=el=>{el.style.height='auto';el.style.height=Math.max(38,el.scrollHeight+2)+'px'};
+function refreshHead(r){}
+function completeness(r){const m=[];if(!r.pmId)m.push('• Choose the PM');if(!r.wo&&!r.ref)m.push('• WO / PM order or PM reference');if(!r.date)m.push('• Date performed');
+  if(!r.byName)m.push('• Technician name (Carried out by)');if(!r.bySig)m.push('• Technician signature');
+  if(r.isolation.some(x=>x.text&&!x.yn))m.push('• Answer every isolation check (Y / N / N/A)');
+  const open=r.tasks.reduce((n,t)=>n+t.steps.filter(s=>s.text&&!s.result).length,0);if(open)m.push('• '+open+' step(s) have no Pass / Fail / N/A result');
+  if(!r.tasks.some(t=>t.title||t.steps.some(s=>s.text)))m.push('• No tasks / steps recorded');
+  if(r.measures.some(x=>x.param&&!x.result))m.push('• Measurements missing Pass / Fail');
+  if(r.rts.some(x=>x.text&&!x.yn))m.push('• Answer every return-to-service check');
+  if(!r.overall)m.push('• Overall result');
+  if(nFail(r)&&!nDef(r))m.push('• A step or measurement failed — record the defect / finding');
+  return m}
+function sigPad(c,r){const p=c.dataset.sig,g=c.getContext('2d');g.lineWidth=3;g.lineCap='round';g.strokeStyle='#111';let d=false,drew=false;
+  const pt=e=>{const b=c.getBoundingClientRect();return [(e.clientX-b.left)*c.width/b.width,(e.clientY-b.top)*c.height/b.height]};
+  c.onpointerdown=e=>{d=true;c.setPointerCapture(e.pointerId);const[x,y]=pt(e);g.beginPath();g.moveTo(x,y)};
+  c.onpointermove=e=>{if(!d)return;const[x,y]=pt(e);g.lineTo(x,y);g.stroke();drew=true};
+  c.onpointerup=()=>{if(!d)return;d=false;if(drew){r[p]=c.toDataURL('image/png');save();toast('Signature captured')}}}
+/* ---------- photos (IndexedDB) ---------- */
+const idb=()=>new Promise((ok,bad)=>{const q=indexedDB.open('pm-register-photos',1);q.onupgradeneeded=()=>{const s=q.result.createObjectStore('p',{keyPath:'id',autoIncrement:true});s.createIndex('rec','rec')};q.onsuccess=()=>ok(q.result);q.onerror=()=>bad(q.error)});
+const rq=x=>new Promise((ok,bad)=>{x.onsuccess=()=>ok(x.result);x.onerror=()=>bad(x.error)});
+async function photosOf(rec){const db=await idb();return rq(db.transaction('p').objectStore('p').index('rec').getAll(rec))}
+async function putPhoto(rec,blob,name){const db=await idb();await new Promise((ok,bad)=>{const t=db.transaction('p','readwrite');t.objectStore('p').add({rec,name,caption:'',ts:new Date().toISOString(),blob});t.oncomplete=ok;t.onerror=()=>bad(t.error)})}
+async function delPhotos(rec){try{const db=await idb(),all=await rq(db.transaction('p').objectStore('p').index('rec').getAll(rec));await new Promise(ok=>{const t=db.transaction('p','readwrite');all.forEach(x=>t.objectStore('p').delete(x.id));t.oncomplete=ok})}catch(e){}}
+function toJpeg(src,max=1280,q=.82){return new Promise((ok,bad)=>{const im=new Image();im.onload=()=>{const k=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);c.toBlob(b=>b?ok(b):bad(new Error('encode')),'image/jpeg',q)};im.onerror=()=>bad(new Error('not an image'));im.src=src})}
+async function addPhoto(rec,file,name){const u=URL.createObjectURL(file);try{await putPhoto(rec,await toJpeg(u),name)}finally{URL.revokeObjectURL(u)}}
+async function showPhotos(rec){const box=$('#phgrid');if(!box)return;const l=await photosOf(rec);if(!cur()||cur().id!==rec)return;box.innerHTML='';
+  l.forEach(p=>{const d=document.createElement('div'),u=URL.createObjectURL(p.blob);d.innerHTML=`<img src="${u}"><button class="d s noprint">×</button><input value="${esc(p.caption)}" placeholder="Caption (e.g. As-found / As-left)">`;
+    d.querySelector('button').onclick=async()=>{if(!confirm('Delete this photo?'))return;const db=await idb();await new Promise(ok=>{const t=db.transaction('p','readwrite');t.objectStore('p').delete(p.id);t.oncomplete=ok});showPhotos(rec)};
+    d.querySelector('input').onchange=async e=>{p.caption=e.target.value;const db=await idb();db.transaction('p','readwrite').objectStore('p').put(p)};box.appendChild(d)})}
+let STREAM=null;const closeCam=()=>{if(STREAM){STREAM.getTracks().forEach(t=>t.stop());STREAM=null}$('#cam').classList.remove('on')};
+async function openCam(rec){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){$('#phfile').onchange=e=>filesIn(rec,e);$('#phfile').click();return}
+  try{STREAM=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});$('#camv').srcObject=STREAM;$('#cam').classList.add('on');
+    $('#snap').onclick=async()=>{const v=$('#camv'),c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);
+      const b=await new Promise(ok=>c.toBlob(ok,'image/jpeg',.9));await addPhoto(rec,b,'camera-'+Date.now());closeCam();showPhotos(rec);toast('Photo saved')};$('#camx').onclick=closeCam}
+  catch(e){closeCam();toast('Camera unavailable — choose a file instead');$('#phfile').onchange=ev=>filesIn(rec,ev);$('#phfile').click()}}
+async function filesIn(rec,e){const fs=[...e.target.files];e.target.value='';for(const f of fs)await addPhoto(rec,f,f.name);showPhotos(rec);toast(fs.length+' photo(s) added')}
+/* ---------- PM list dialog ---------- */
+function pmDialog(){const L=$('#pmlist');L.innerHTML=S.pms.map((p,i)=>`<div class="pmrow"><input data-pm="${i}" value="${esc(p.title)}"><button type="button" class="s d" data-pmrm="${i}">✕</button></div>`).join('');
+  L.querySelectorAll('[data-pm]').forEach(i=>i.onchange=()=>{const p=S.pms[+i.dataset.pm];p.title=i.value.trim()||p.title;S.records.forEach(r=>{if(r.pmId===p.id)r.pmTitle=p.title});save()});
+  L.querySelectorAll('[data-pmrm]').forEach(b=>b.onclick=()=>{const p=S.pms[+b.dataset.pmrm];const used=S.records.filter(r=>r.pmId===p.id).length;if(!confirm(used?`Remove "${p.title}"? ${used} record(s) keep its title.`:`Remove "${p.title}"?`))return;S.pms.splice(+b.dataset.pmrm,1);save();pmDialog()})}
+$('#bPm').onclick=()=>{pmDialog();$('#pmdlg').showModal()};$('#pmdlg').onclose=()=>render();
+$('#pmadd').onclick=()=>{const t=$('#pmnew').value.trim();if(!t)return;S.pms.push({id:uid(),title:t});$('#pmnew').value='';save();pmDialog()};
+$('#pmnew').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#pmadd').click()}};
+/* ---------- Excel export (minimal .xlsx writer, no libraries) ---------- */
+const CRC=(()=>{const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+const crc32=b=>{let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0};
+function zip(files){const enc=new TextEncoder(),parts=[],cd=[];let off=0;const u16=v=>[v&255,v>>8&255],u32=v=>[v&255,v>>8&255,v>>16&255,v>>24&255];
+  for(const[name,data]of files){const nb=enc.encode(name),db=typeof data==='string'?enc.encode(data):data,crc=crc32(db);
+    const lh=new Uint8Array([0x50,0x4b,3,4,...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0x21),...u32(crc),...u32(db.length),...u32(db.length),...u16(nb.length),...u16(0)]);
+    parts.push(lh,nb,db);cd.push(new Uint8Array([0x50,0x4b,1,2,...u16(20),...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0x21),...u32(crc),...u32(db.length),...u32(db.length),...u16(nb.length),...u16(0),...u16(0),...u16(0),...u16(0),...u32(0),...u32(off)]),nb);off+=lh.length+nb.length+db.length}
+  const cdLen=cd.reduce((a,b)=>a+b.length,0);parts.push(...cd,new Uint8Array([0x50,0x4b,5,6,0,0,0,0,...u16(files.length),...u16(files.length),...u32(cdLen),...u32(off),0,0]));
+  return new Blob(parts,{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})}
+const colL=n=>{let s='';n++;while(n){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26)}return s};
+const xml=s=>String(s??'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'');
+function sheetXml(head,rows){const all=[head,...rows];const widths=head.map((h,i)=>Math.min(60,Math.max(10,...all.map(r=>String(r[i]??'').length))));
+  const cell=(v,c,r,st)=>typeof v==='number'&&isFinite(v)?`<c r="${colL(c)}${r}" s="${st}"><v>${v}</v></c>`:`<c r="${colL(c)}${r}" s="${st}" t="inlineStr"><is><t xml:space="preserve">${xml(v)}</t></is></c>`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w+2}" customWidth="1"/>`).join('')}</cols><sheetData>${all.map((r,ri)=>`<row r="${ri+1}">${r.map((v,c)=>cell(v,c,ri+1,ri?2:1)).join('')}</row>`).join('')}</sheetData><autoFilter ref="A1:${colL(head.length-1)}${all.length}"/></worksheet>`}
+function buildWorkbook(){
+  const R=S.records.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));const id=r=>[r.date,r.pmTitle,r.wo||r.ref];const H3=['Date','PM','WO / ref'];
+  const sheets=[
+   ['Register',['Date','PM','WO / PM order','PM reference','Frequency','Department','Site','Equipment scope','Technician','Duration (h)','Personnel actual','Steps failed / measures failed','Defects raised','Overall result','Status','Reviewed by','Review date'],
+     R.map(r=>[r.date,r.pmTitle,r.wo,r.ref,r.frequency,r.department,r.site,r.scope,r.byName,hours(r)||'',+r.personActual||'',nFail(r),nDef(r),r.overall,r.status,r.revName,r.revDate])],
+   ['Tasks & steps',[...H3,'Task','Task complete','Step','How / method','Acceptance','Result','Recorded value / comment'],R.flatMap(r=>r.tasks.flatMap(t=>t.steps.map((s,j)=>[...id(r),t.title,t.done,j+1+'. '+s.text,s.how,s.accept,s.result,s.record])))],
+   ['Measurements',[...H3,'Parameter','Target / limit','Acceptance','Measured','Pass / Fail'],R.flatMap(r=>r.measures.filter(m=>m.param).map(m=>[...id(r),m.param,m.target,m.accept,m.measured,m.result]))],
+   ['Defects & findings',[...H3,'Defect / finding','Notification / WO','Priority','Assigned to','Additional work required'],R.flatMap(r=>r.defects.filter(d=>d.finding.trim()).map(d=>[...id(r),d.finding,d.wo,d.priority,d.assigned,r.additional]))],
+   ['Parts & materials',[...H3,'Type','Description','Part no.','Qty required','Qty used / unit'],R.flatMap(r=>[...r.parts.filter(p=>p.desc).map(p=>[...id(r),'Part',p.desc,p.partNo,p.qtyReq,p.qtyUsed]),...r.materials.filter(m=>m.desc).map(m=>[...id(r),'Material',m.desc,'','',m.qty])])],
+   ['Checks',[...H3,'Section','Item','Answer'],R.flatMap(r=>[...r.ppe.map(p=>[...id(r),'Safety wear',p.item,(p.required?'Required':'Not required')+' / '+(p.worn?'worn':'—')]),...r.isolation.filter(x=>x.text).map(x=>[...id(r),'Isolation',x.text,x.yn]),...r.rts.filter(x=>x.text).map(x=>[...id(r),'Return to service',x.text,x.yn]),
+     [...id(r),'Permit','Permit no. / LOTO no. / gas test %LFL / zero-energy by',[r.permitNo,r.lotoNo,r.gasTest,r.zeroEnergy].join(' / ')],[...id(r),'Isolation verified by','Second person (name / position)',[r.isoName,r.isoPos].join(' / ')]])],
+   ['Equipment',[...H3,'Asset / tag','Model / description','Rating / detail','Serial','Notes'],R.flatMap(r=>r.equipment.filter(e=>e.tag||e.model).map(e=>[...id(r),e.tag,e.model,e.detail,e.serial,e.notes]))]];
+  const files=[['[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`],
+   ['_rels/.rels',`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+   ['xl/workbook.xml',`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s,i)=>`<sheet name="${xml(s[0])}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets></workbook>`],
+   ['xl/_rels/workbook.xml.rels',`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+   ['xl/styles.xml',`<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F4E79"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`],
+   ...sheets.map((s,i)=>[`xl/worksheets/sheet${i+1}.xml`,sheetXml(s[1],s[2])])];
+  return zip(files)}
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
+$('#bXlsx').onclick=()=>{if(!S.records.length){toast('No records to export yet');return}download(buildWorkbook(),'PM-Completion-Register-'+today()+'.xlsx');toast('Excel exported')};
+/* ---------- backup / restore (records + PM list; photos stay on this device) ---------- */
+$('#bBackup').onclick=()=>{const c=prompt('Type B to download a backup file, or R to restore from a backup file.','B');if(!c)return;
+  if(/^b/i.test(c))download(new Blob([JSON.stringify({pms:S.pms,records:S.records})],{type:'application/json'}),'PM-Completion-Register-backup-'+today()+'.json');
+  else if(/^r/i.test(c))$('#restore').click()};
+$('#restore').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;try{const j=JSON.parse(await f.text());if(!Array.isArray(j.records)||!Array.isArray(j.pms))throw 0;
+  if(!confirm('Restore '+j.records.length+' record(s) and '+j.pms.length+' PM title(s)? Records with the same id are replaced; others are kept.'))return;
+  j.pms.forEach(p=>{if(!S.pms.some(x=>x.id===p.id||x.title===p.title))S.pms.push(p)});j.records.forEach(r=>{const i=S.records.findIndex(x=>x.id===r.id);if(i>=0)S.records[i]=r;else S.records.push(r)});save();render();toast('Restored')}catch(x){toast('That is not a valid backup file')}};
+/* ---------- navigation ---------- */
+function render(){S.view==='rec'&&cur()?viewRec():(S.view='list',viewList())}
+$('#bList').onclick=()=>{S.view='list';save();render();scrollTo(0,0)};
+$('#bNew').onclick=()=>{const r=blank();S.records.push(r);S.cur=r.id;S.view='rec';save();render();scrollTo(0,0)};
+render();
+</script></body></html>
